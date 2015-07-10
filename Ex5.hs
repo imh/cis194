@@ -5,6 +5,8 @@ module Ex5 where
 
 import Parser (parseExp)
 import qualified StackVM as S
+import qualified Data.Map as M
+import Data.Maybe
 
 data ExprT = Lit Integer
            | Add ExprT ExprT
@@ -53,6 +55,48 @@ instance Expr Mod7 where
   add (Mod7 x) (Mod7 y) = Mod7 ((x + y) `mod` 7)
   lit x = Mod7 (x `mod` 7)
 
+instance Expr S.Program where
+  mul x y = x ++ y ++ [S.Mul]
+  add x y = x ++ y ++ [S.Add]
+  lit x = [S.PushI x]
 
-reify :: ExprT -> ExprT
-reify = id
+compile :: String -> Maybe S.Program
+compile = parseExp lit add mul
+
+class HasVars a where
+  var :: String -> a
+
+data VarExprT = VLit Integer
+           | VAdd VarExprT VarExprT
+           | VMul VarExprT VarExprT
+           | VVar String
+  deriving (Show)
+
+instance Expr VarExprT where
+  mul = VMul
+  add = VAdd
+  lit = VLit
+
+instance HasVars VarExprT where
+  var = VVar
+
+instance Expr (M.Map String Integer -> Maybe Integer) where
+  mul f g = \m -> let fm = f m
+                      gm = g m
+                   in if isNothing fm || isNothing gm
+                       then Nothing
+                       else Just $ (fromJust fm) * (fromJust gm)
+  add f g = \m -> let fm = f m
+                      gm = g m
+                   in if isNothing fm || isNothing gm
+                       then Nothing
+                       else Just $ (fromJust fm) + (fromJust gm)
+  lit i = \_ -> Just i
+
+instance HasVars (M.Map String Integer -> Maybe Integer) where
+  var s = \m -> M.lookup s m
+
+withVars :: [(String, Integer)]
+         -> (M.Map String Integer -> Maybe Integer)
+         -> Maybe Integer
+withVars vs expr = expr $ M.fromList vs
