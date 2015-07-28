@@ -67,4 +67,28 @@ instance Functor Parser where
 
 instance Applicative Parser where
   pure a = Parser (\xs -> Just (a, xs))
-  (<*>) (Parser p1) (Parser p2) = Parser (p1 >>= p2)
+  (<*>) (Parser p1) (Parser p2) =
+    Parser (\str -> case p1 str of
+                      Nothing -> Nothing
+                      Just (f', s') -> first f' <$> p2 s')
+
+abParser :: Parser (Char, Char)
+abParser = (,) <$> char 'a' <*> char 'b'
+
+abParser_ :: Parser ()
+abParser_ = const () <$> abParser
+
+intPair :: Parser [Integer]
+intPair = (\a _ b -> [a,b]) <$> posInt <*> char ' ' <*> posInt
+
+instance Alternative Parser where
+  empty = Parser (\_ -> Nothing)
+  (<|>) (Parser p1) (Parser p2) =
+    Parser (\str -> case p1 str of
+                      Nothing -> p2 str
+                      jx@(Just _) -> jx)
+
+intOrUppercase :: Parser ()
+intOrUppercase = (const () <$> posInt) <|> (const () <$> satisfy isUpper)
+
+
